@@ -643,7 +643,16 @@ namespace dxvk {
         if (f.extensionEnabled)
           message += str::format(" (extension: ", f.extensionEnabled->extensionName, ")");
 
+#ifdef __APPLE__
+        // GeneralsX/WarPowers macOS patchset (rebased): MoltenVK lacks several
+        // features DXVK requires (geometryShader, robustness2, nullDescriptor).
+        // Downgrade requirement failures to warnings and run degraded, matching
+        // the original 2.6-era fork behavior of masking unsupported features.
+        Logger::warn(str::format("macOS: ignoring missing required feature: ", message));
+        continue;
+#else
         return message;
+#endif
       }
     }
 

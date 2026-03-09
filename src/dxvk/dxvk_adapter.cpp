@@ -1,9 +1,24 @@
+// macOS: Enable Vulkan beta extensions to expose VK_KHR_portability_subset types
+// (VkPhysicalDevicePortabilitySubsetFeaturesKHR, VK_STRUCTURE_TYPE_*_PORTABILITY_SUBSET_*).
+// These are guarded by VK_ENABLE_BETA_EXTENSIONS in vulkan_core.h and vulkan_beta.h.
+// This define MUST appear before any Vulkan header is pulled in.
+#ifdef __APPLE__
+#define VK_ENABLE_BETA_EXTENSIONS
+#endif
+
 #include <cstring>
 #include <unordered_set>
 
 #include "dxvk_adapter.h"
 #include "dxvk_device.h"
 #include "dxvk_instance.h"
+
+// macOS: VkPhysicalDevicePortabilitySubsetFeaturesKHR lives in vulkan_beta.h.
+// Included after dxvk headers (which pull in vulkan.h) but VK_ENABLE_BETA_EXTENSIONS
+// defined above ensures the portability types are active in vulkan_core.h too.
+#ifdef __APPLE__
+#include <vulkan/vulkan_beta.h>
+#endif
 
 namespace dxvk {
 
@@ -186,6 +201,32 @@ namespace dxvk {
 
     for (const auto& ext : extensions)
       extensionNames.push_back(ext.extensionName);
+
+#ifdef __APPLE__
+    // GeneralsX/WarPowers macOS patchset (rebased): the Vulkan spec requires
+    // enabling VK_KHR_portability_subset whenever the device advertises it,
+    // and MoltenVK enforces this in vkCreateDevice.
+    {
+      uint32_t availCount = 0u;
+      vk->vkEnumerateDeviceExtensionProperties(m_handle, nullptr, &availCount, nullptr);
+      std::vector<VkExtensionProperties> avail(availCount);
+      vk->vkEnumerateDeviceExtensionProperties(m_handle, nullptr, &availCount, avail.data());
+
+      bool supportsPortability = false;
+      bool alreadyListed = false;
+
+      for (const auto& e : avail) {
+        if (!std::strcmp(e.extensionName, "VK_KHR_portability_subset"))
+          supportsPortability = true;
+      }
+      for (const auto* n : extensionNames) {
+        if (!std::strcmp(n, "VK_KHR_portability_subset"))
+          alreadyListed = true;
+      }
+      if (supportsPortability && !alreadyListed)
+        extensionNames.push_back("VK_KHR_portability_subset");
+    }
+#endif
 
     // Query queue infos
     DxvkDeviceQueueMapping queueMapping = m_capabilities.getQueueMapping();
