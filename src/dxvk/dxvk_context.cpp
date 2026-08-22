@@ -7061,10 +7061,10 @@ namespace dxvk {
 
         m_cmd->track(m_state.vi.vertexBuffers[binding].buffer(), DxvkAccess::Read);
       } else {
-        // GeneralsX Patch 12: MoltenVK crashes on VK_NULL_HANDLE in
-        // vkCmdBindVertexBuffers2 (no nullDescriptor support). Use the
-        // DXVK dummy buffer instead — same pattern as xfb null slots.
-        buffers[i] = m_common->dummyResources().bufferHandle();
+        // GeneralsX Patch 12 (rebased to 2.7 API): MoltenVK crashes on
+        // VK_NULL_HANDLE in vkCmdBindVertexBuffers2 (no nullDescriptor
+        // support). Use the DXVK dummy buffer instead — same as xfb slots.
+        buffers[i] = m_common->dummyResources().bufferInfo().buffer;
         offsets[i] = 0;
         lengths[i] = 0;
         strides[i] = 0;

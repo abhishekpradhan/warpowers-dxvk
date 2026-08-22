@@ -242,8 +242,10 @@ namespace dxvk {
       // when VK_KHR_portability_enumeration is enabled, otherwise
       // vkEnumeratePhysicalDevices returns VK_ERROR_INCOMPATIBLE_DRIVER.
       VkInstanceCreateFlags createFlags = 0;
-      if (m_extensionSet.supports(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME))
-        createFlags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+      for (const char* wpExtName : extensionNames) {
+        if (!std::strcmp(wpExtName, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME))
+          createFlags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+      }
 
       VkInstanceCreateInfo info = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
       info.flags                    = createFlags;
@@ -282,35 +284,7 @@ namespace dxvk {
   }
 
 
-<<<<<<< HEAD
   bool DxvkInstance::initAdapters() {
-=======
-  std::vector<DxvkExt*> DxvkInstance::getExtensionList(DxvkInstanceExtensions& ext, bool withDebug) {
-    std::vector<DxvkExt*> result = {{
-      &ext.extSurfaceMaintenance1,
-      &ext.khrGetSurfaceCapabilities2,
-      &ext.khrSurface,
-      // MoltenVK/macOS: VK_KHR_portability_enumeration must be enabled or
-      // vkEnumeratePhysicalDevices returns VK_ERROR_INCOMPATIBLE_DRIVER (-9).
-      &ext.khrPortabilityEnumeration,
-    }};
-
-    if (withDebug)
-      result.push_back(&ext.extDebugUtils);
-
-    return result;
-  }
-
-
-  DxvkNameSet DxvkInstance::getExtensionSet(const DxvkNameList& extensions) {
-    DxvkNameSet enabledSet(extensions.count(), extensions.names());
-    enabledSet.mergeRevisions(DxvkNameSet::enumInstanceLayers(m_vkl));
-    return enabledSet;
-  }
-
-
-  std::vector<Rc<DxvkAdapter>> DxvkInstance::queryAdapters() {
->>>>>>> ffcdbcaf (macOS: bake GeneralsX DXVK patchset into source)
     uint32_t numAdapters = 0;
     if (m_vki->vkEnumeratePhysicalDevices(m_vki->instance(), &numAdapters, nullptr) != VK_SUCCESS)
       throw DxvkError("DxvkInstance::enumAdapters: Failed to enumerate adapters");
@@ -400,6 +374,9 @@ namespace dxvk {
       &extensions.extSurfaceMaintenance1,
       &extensions.khrGetSurfaceCapabilities2,
       &extensions.khrSurface,
+      // GeneralsX/WarPowers macOS patchset (rebased): MoltenVK requires
+      // VK_KHR_portability_enumeration or physical-device enumeration fails.
+      &extensions.khrPortabilityEnumeration,
     }};
   }
 
