@@ -1749,10 +1749,11 @@ namespace dxvk {
               const auto& wp_cb = m_uniformBuffers[4];
               if (wp_cb.defined()) {
                 auto wp_ci = wp_cb.getSliceInfo();
-                fprintf(stderr, "[WP_VK]   ffcb=%p off=%llu size=%llu map=%p",
+                fprintf(stderr, "[WP_VK]   ffcb=%p off=%llu size=%llu map=%p gpuAddr=0x%llx",
                         reinterpret_cast<void*>(wp_ci.buffer),
                         (unsigned long long)wp_ci.offset,
-                        (unsigned long long)wp_ci.size, wp_ci.mapPtr);
+                        (unsigned long long)wp_ci.size, wp_ci.mapPtr,
+                        (unsigned long long)wp_ci.gpuAddress);
                 if (wp_ci.mapPtr) {
                   const float* wp_c = reinterpret_cast<const float*>(wp_ci.mapPtr);
                   fprintf(stderr, " wvT=(%.1f %.1f %.1f) pj00=%.3f\n", wp_c[12], wp_c[13], wp_c[14], wp_c[48]);
@@ -7186,11 +7187,16 @@ namespace dxvk {
         // robustness2 (absent on MoltenVK — the reason this path exists)
         // yields undefined values instead of zeros. Full length + stride 0
         // reads the same in-bounds zeroes for every vertex, fully defined.
+        // Stride must be nonzero: with dynamic vertex strides MoltenVK
+        // passes it straight to Metal's attributeStride, and a zero stride
+        // on a per-vertex layout makes the AGX driver silently drop the
+        // whole draw. 16 covers any attribute format; reads stay inside
+        // the dummy buffer for any sane vertex count.
         auto wp_dummy = m_common->dummyResources().bufferInfo();
         buffers[i] = wp_dummy.buffer;
         offsets[i] = wp_dummy.offset;
         lengths[i] = wp_dummy.size;
-        strides[i] = 0;
+        strides[i] = 16;
       }
     }
 

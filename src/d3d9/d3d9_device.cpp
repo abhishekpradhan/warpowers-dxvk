@@ -1875,6 +1875,24 @@ namespace dxvk {
     if (unlikely(!Count && pRects))
       return D3D_OK;
 
+    // WarPowers @debug WP_DXVK_SPY: log app-issued clears (who wipes what).
+    {
+      static const bool wp_spy = std::getenv("WP_DXVK_SPY") != nullptr;
+      if (unlikely(wp_spy)) {
+        static int wp_budget = 400;
+        if (wp_budget > 0) {
+          wp_budget--;
+          const auto& wp_vp = m_state.viewport;
+          fprintf(stderr, "[WP_CLR] flags=0x%x color=0x%08x z=%.2f nrects=%u r0=(%d,%d,%d,%d) vp=(%u,%u %ux%u)\n",
+                  unsigned(Flags), unsigned(Color), Z, unsigned(Count),
+                  Count && pRects ? int(pRects[0].x1) : -1, Count && pRects ? int(pRects[0].y1) : -1,
+                  Count && pRects ? int(pRects[0].x2) : -1, Count && pRects ? int(pRects[0].y2) : -1,
+                  unsigned(wp_vp.X), unsigned(wp_vp.Y), unsigned(wp_vp.Width), unsigned(wp_vp.Height));
+          fflush(stderr);
+        }
+      }
+    }
+
     D3D9DeviceLock lock = LockDevice();
 
     // D3DCLEAR_ZBUFFER and D3DCLEAR_STENCIL are invalid flags
@@ -5932,7 +5950,19 @@ namespace dxvk {
         : sizeof(D3D9FixedFunctionVertexBlendDataHW));
 
     // Allocate constant buffer for values that would otherwise get passed as spec constants for fast-linked pipelines to use.
-    if (m_usingGraphicsPipelines) {
+    // GeneralsX/WarPowers macOS fix: MoltenVK lacks graphicsPipelineLibrary
+    // (the requirement is waived in dxvk_device_info.cpp), so
+    // m_usingGraphicsPipelines is false here. But every generated shader
+    // still declares the spec UBO, and on Metal the unbound slot becomes a
+    // null pointer in the argument buffer; the AGX GPU then silently kills
+    // any draw whose pipeline reads (or speculates a read) through it —
+    // the "invisible mesh" bug. Always create and bind the buffer.
+#ifdef __APPLE__
+    const bool needsSpecUbo = true;
+#else
+    const bool needsSpecUbo = m_usingGraphicsPipelines;
+#endif
+    if (needsSpecUbo) {
       m_specBuffer = D3D9ConstantBuffer(this,
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -9004,7 +9034,14 @@ namespace dxvk {
     });
 
     // Write spec constants into buffer for fast-linked pipelines to use it.
-    if (m_usingGraphicsPipelines) {
+    // GeneralsX/WarPowers macOS fix: keep the spec UBO live even without
+    // graphics pipeline libraries — see CreateConstantBuffers.
+#ifdef __APPLE__
+    const bool needsSpecUbo = true;
+#else
+    const bool needsSpecUbo = m_usingGraphicsPipelines;
+#endif
+    if (needsSpecUbo) {
       // TODO: Make uploading specialization information less naive.
       auto mapPtr = m_specBuffer.AllocSlice();
       memcpy(mapPtr, m_specInfo.data.data(), D3D9SpecializationInfo::UBOSize);
