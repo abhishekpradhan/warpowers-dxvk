@@ -1692,6 +1692,115 @@ namespace dxvk {
           uint32_t                  count,
     const T*                        draws) {
     if (this->commitGraphicsState<Indexed, false>()) {
+      // WarPowers @debug WP_DXVK_SPY: Vulkan-level per-draw state dump for the
+      // invisible-mesh investigation. Passive, env-gated, budgeted.
+      static const bool wp_spy = std::getenv("WP_DXVK_SPY") != nullptr;
+      if (unlikely(wp_spy)) {
+        static int wp_all = 2000, wp_box = 40;
+        uint32_t wp_n = 0;
+        int32_t wp_voff = 0;
+        uint32_t wp_first = 0;
+        if constexpr (Indexed) {
+          wp_n = draws->indexCount;
+          wp_voff = draws->vertexOffset;
+          wp_first = draws->firstIndex;
+        } else {
+          wp_n = draws->vertexCount;
+          wp_first = draws->firstVertex;
+        }
+        bool wp_isBox = Indexed && wp_n == 36;
+        if (wp_all > 0 || (wp_isBox && wp_box > 0)) {
+          if (wp_all > 0) wp_all--;
+          const VkViewport& wp_vp = m_state.vp.viewports[0];
+          const VkRect2D& wp_sc = m_state.vp.scissorRects[0];
+          void* wp_rt0 = m_state.om.renderTargets.color[0].view.ptr();
+          void* wp_dsv = m_state.om.renderTargets.depth.view.ptr();
+          fprintf(stderr, "[WP_VK] %s n=%u first=%u voff=%d batch=%u pipe=%p vs=%p fs=%p vp=(%.0f,%.0f %.0fx%.0f z=%.2f..%.2f) sc=(%d,%d %ux%u) cull=%u ff=%u rt0=%p dsv=%p blend=%u wmask=0x%x srcF=%u dstF=%u dTest=%d dWrite=%d dOp=%u il=%u/%u\n",
+                  Indexed ? "drawI" : "draw", wp_n, wp_first, wp_voff, count,
+                  reinterpret_cast<void*>(m_state.gp.pipeline),
+                  reinterpret_cast<void*>(m_state.gp.shaders.vs.ptr()),
+                  reinterpret_cast<void*>(m_state.gp.shaders.fs.ptr()),
+                  wp_vp.x, wp_vp.y, wp_vp.width, wp_vp.height, wp_vp.minDepth, wp_vp.maxDepth,
+                  wp_sc.offset.x, wp_sc.offset.y, wp_sc.extent.width, wp_sc.extent.height,
+                  unsigned(m_state.dyn.cullMode), unsigned(m_state.dyn.frontFace),
+                  wp_rt0, wp_dsv,
+                  unsigned(m_state.gp.state.omBlend[0].blendEnable()),
+                  unsigned(m_state.gp.state.omBlend[0].colorWriteMask()),
+                  unsigned(m_state.gp.state.omBlend[0].srcColorBlendFactor()),
+                  unsigned(m_state.gp.state.omBlend[0].dstColorBlendFactor()),
+                  int(m_state.dyn.depthStencilState.depthTest()),
+                  int(m_state.dyn.depthStencilState.depthWrite()),
+                  unsigned(m_state.dyn.depthStencilState.depthCompareOp()),
+                  unsigned(m_state.gp.state.il.bindingCount()),
+                  unsigned(m_state.gp.state.il.attributeCount()));
+          fprintf(stderr, "[WP_VK]   rs: polyMode=%u depthClip=%u sampleCount=%u | ms: mask=0x%x a2c=%u count=%u\n",
+                  unsigned(m_state.gp.state.rs.polygonMode()),
+                  unsigned(m_state.gp.state.rs.depthClipEnable()),
+                  unsigned(m_state.gp.state.rs.sampleCount()),
+                  unsigned(m_state.gp.state.ms.sampleMask()),
+                  unsigned(m_state.gp.state.ms.enableAlphaToCoverage()),
+                  unsigned(m_state.gp.state.ms.sampleCount()));
+          if (wp_isBox && wp_box > 0) {
+            wp_box--;
+            // FF VS constants live at slot 4 (computeResourceSlotId(VS, CB,
+            // VSFixedFunction)). Dump the slice content the DRAW will see:
+            // WorldView translation + Projection[0][0].
+            {
+              const auto& wp_cb = m_uniformBuffers[4];
+              if (wp_cb.defined()) {
+                auto wp_ci = wp_cb.getSliceInfo();
+                fprintf(stderr, "[WP_VK]   ffcb=%p off=%llu size=%llu map=%p",
+                        reinterpret_cast<void*>(wp_ci.buffer),
+                        (unsigned long long)wp_ci.offset,
+                        (unsigned long long)wp_ci.size, wp_ci.mapPtr);
+                if (wp_ci.mapPtr) {
+                  const float* wp_c = reinterpret_cast<const float*>(wp_ci.mapPtr);
+                  fprintf(stderr, " wvT=(%.1f %.1f %.1f) pj00=%.3f\n", wp_c[12], wp_c[13], wp_c[14], wp_c[48]);
+                  fprintf(stderr, "[WP_VK]   WV= %.3f %.3f %.3f %.3f | %.3f %.3f %.3f %.3f | %.3f %.3f %.3f %.3f | %.3f %.3f %.3f %.3f\n",
+                          wp_c[0], wp_c[1], wp_c[2], wp_c[3], wp_c[4], wp_c[5], wp_c[6], wp_c[7],
+                          wp_c[8], wp_c[9], wp_c[10], wp_c[11], wp_c[12], wp_c[13], wp_c[14], wp_c[15]);
+                  fprintf(stderr, "[WP_VK]   PJ= %.4f %.4f %.4f %.4f | %.4f %.4f %.4f %.4f | %.4f %.4f %.4f %.4f | %.4f %.4f %.4f %.4f\n",
+                          wp_c[48], wp_c[49], wp_c[50], wp_c[51], wp_c[52], wp_c[53], wp_c[54], wp_c[55],
+                          wp_c[56], wp_c[57], wp_c[58], wp_c[59], wp_c[60], wp_c[61], wp_c[62], wp_c[63]);
+                } else {
+                  fprintf(stderr, "\n");
+                }
+              } else {
+                fprintf(stderr, "[WP_VK]   ffcb UNDEFINED\n");
+              }
+            }
+            auto wp_ib = m_state.vi.indexBuffer.getSliceInfo();
+            fprintf(stderr, "[WP_VK]   ib=%p off=%llu size=%llu map=%p type=%u\n",
+                    reinterpret_cast<void*>(wp_ib.buffer),
+                    (unsigned long long)wp_ib.offset, (unsigned long long)wp_ib.size,
+                    wp_ib.mapPtr, unsigned(m_state.vi.indexType));
+            if (wp_ib.mapPtr && m_state.vi.indexType == VK_INDEX_TYPE_UINT16) {
+              const uint16_t* wp_idx = reinterpret_cast<const uint16_t*>(
+                  reinterpret_cast<const char*>(wp_ib.mapPtr) + wp_first * 2u);
+              fprintf(stderr, "[WP_VK]   idx[0..8]=%u %u %u %u %u %u %u %u %u\n",
+                      wp_idx[0], wp_idx[1], wp_idx[2], wp_idx[3], wp_idx[4],
+                      wp_idx[5], wp_idx[6], wp_idx[7], wp_idx[8]);
+            }
+            for (uint32_t wp_i = 0; wp_i < 2; wp_i++) {
+              if (!m_state.vi.vertexBuffers[wp_i].defined())
+                continue;
+              auto wp_vb = m_state.vi.vertexBuffers[wp_i].getSliceInfo();
+              fprintf(stderr, "[WP_VK]   vb[%u]=%p off=%llu size=%llu map=%p stride=%u\n",
+                      wp_i, reinterpret_cast<void*>(wp_vb.buffer),
+                      (unsigned long long)wp_vb.offset, (unsigned long long)wp_vb.size,
+                      wp_vb.mapPtr, m_state.vi.vertexStrides[wp_i]);
+              if (wp_vb.mapPtr) {
+                const float* wp_f = reinterpret_cast<const float*>(
+                    reinterpret_cast<const char*>(wp_vb.mapPtr) +
+                    int64_t(wp_voff) * int64_t(m_state.vi.vertexStrides[wp_i]));
+                fprintf(stderr, "[WP_VK]   f[0..7]= %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f\n",
+                        wp_f[0], wp_f[1], wp_f[2], wp_f[3], wp_f[4], wp_f[5], wp_f[6], wp_f[7]);
+              }
+            }
+          }
+          fflush(stderr);
+        }
+      }
       if (count == 1u) {
         // Most common case, just emit a single draw
         if constexpr (Indexed) {
@@ -7036,6 +7145,14 @@ namespace dxvk {
     bool oldDynamicStrides = m_flags.test(DxvkContextFlag::GpDynamicVertexStrides);
     bool newDynamicStrides = true;
 
+    // WarPowers @debug WP_STATIC_STRIDES: force vertex strides to be baked
+    // into the pipeline instead of set dynamically. Metal has no dynamic
+    // strides, so MoltenVK must patch pipelines for them — suspected weak
+    // spot for the invisible-mesh bug.
+    static const bool wp_staticStrides = std::getenv("WP_STATIC_STRIDES") != nullptr;
+    if (unlikely(wp_staticStrides))
+      newDynamicStrides = false;
+
     // Set buffer handles and offsets for active bindings
     for (uint32_t i = 0; i < m_state.gp.state.il.bindingCount(); i++) {
       uint32_t binding = m_state.gp.state.ilBindings[i].binding();
@@ -7064,9 +7181,15 @@ namespace dxvk {
         // GeneralsX Patch 12 (rebased to 2.7 API): MoltenVK crashes on
         // VK_NULL_HANDLE in vkCmdBindVertexBuffers2 (no nullDescriptor
         // support). Use the DXVK dummy buffer instead — same as xfb slots.
-        buffers[i] = m_common->dummyResources().bufferInfo().buffer;
-        offsets[i] = 0;
-        lengths[i] = 0;
+        // WarPowers fix: bind the dummy's FULL length, not 0. A zero-size
+        // binding makes every attribute fetch out-of-bounds, which without
+        // robustness2 (absent on MoltenVK — the reason this path exists)
+        // yields undefined values instead of zeros. Full length + stride 0
+        // reads the same in-bounds zeroes for every vertex, fully defined.
+        auto wp_dummy = m_common->dummyResources().bufferInfo();
+        buffers[i] = wp_dummy.buffer;
+        offsets[i] = wp_dummy.offset;
+        lengths[i] = wp_dummy.size;
         strides[i] = 0;
       }
     }

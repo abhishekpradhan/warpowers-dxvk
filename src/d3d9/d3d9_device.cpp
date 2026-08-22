@@ -8022,6 +8022,11 @@ namespace dxvk {
       key.Data.Contents.HasFog       = m_state.vertexDecl != nullptr ? m_state.vertexDecl->TestFlag(D3D9VertexDeclFlag::HasFog)       : false;
 
       bool lighting    = m_state.renderStates[D3DRS_LIGHTING] != 0 && !key.Data.Contents.HasPositionT;
+      // WarPowers @debug shader-variant bisection for the invisible-mesh bug:
+      // WP_FF_NOLIGHT forces the non-lit FF VS (same variant terrain uses).
+      static const bool wp_noLight = std::getenv("WP_FF_NOLIGHT") != nullptr;
+      if (unlikely(wp_noLight))
+        lighting = false;
       bool colorVertex = m_state.renderStates[D3DRS_COLORVERTEX] != 0;
       uint32_t mask    = (lighting && colorVertex)
                        ? (key.Data.Contents.HasColor0 ? D3DMCS_COLOR1 : D3DMCS_MATERIAL)
@@ -8048,6 +8053,11 @@ namespace dxvk {
         }
       }
 
+      // WarPowers @debug WP_FF_NOLIGHTCOUNT: keep lighting on but compile the
+      // zero-light variant (isolates the per-light loop from the mesh VS).
+      static const bool wp_noLightCount = std::getenv("WP_FF_NOLIGHTCOUNT") != nullptr;
+      if (unlikely(wp_noLightCount))
+        lightCount = 0;
       key.Data.Contents.LightCount = lightCount;
 
       for (uint32_t i = 0; i < caps::MaxTextureBlendStages; i++) {
@@ -8148,6 +8158,27 @@ namespace dxvk {
 
       data->Material = m_state.material;
       data->TweenFactor = bit::cast<float>(m_state.renderStates[D3DRS_TWEENFACTOR]);
+
+      // WarPowers @debug WP_DXVK_SPY: log each FF VS constant upload. The
+      // world translation distinguishes mesh uploads (nonzero) from
+      // terrain/identity uploads.
+      static const bool wp_spy = std::getenv("WP_DXVK_SPY") != nullptr;
+      if (unlikely(wp_spy)) {
+        static int wp_budget = 300;
+        if (wp_budget > 0) {
+          wp_budget--;
+          const float* wv = reinterpret_cast<const float*>(&data->WorldView);
+          const float* pj = reinterpret_cast<const float*>(&data->Projection);
+          fprintf(stderr, "[WP_FF] up map=%p wvT=(%.1f %.1f %.1f) wvD=(%.2f %.2f %.2f) pj00=%.3f pj11=%.3f matD=(%.2f %.2f %.2f %.2f) lights=%u\n",
+                  reinterpret_cast<void*>(mapPtr),
+                  wv[12], wv[13], wv[14], wv[0], wv[5], wv[10],
+                  pj[0], pj[5],
+                  data->Material.Diffuse.r, data->Material.Diffuse.g,
+                  data->Material.Diffuse.b, data->Material.Diffuse.a,
+                  lightIdx);
+          fflush(stderr);
+        }
+      }
     }
 
     if (m_flags.test(D3D9DeviceFlag::DirtyFFVertexBlend) && vertexBlendMode == D3D9FF_VertexBlendMode_Normal) {
