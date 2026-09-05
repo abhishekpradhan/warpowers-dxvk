@@ -1,4 +1,33 @@
-# DXVK
+# War Powers DXVK fork
+
+This is the native graphics dependency checkout maintained for [War Powers](https://github.com/abhishekpradhan/warpowers). It preserves the [fbraz3 DXVK fork](https://github.com/fbraz3/dxvk) and [DXVK upstream](https://github.com/doitsujin/dxvk) lineage, including the native SDL3/macOS integration used by GeneralsX. It is currently private and is not an official upstream DXVK release.
+
+The War Powers browser runtime uses `d8web` and WebGL2. This nested DXVK implementation is used for native development, particularly the D3D8 → Vulkan → MoltenVK path on macOS; its native libraries are not part of the browser game. The browser engine separately obtains compatibility headers through its CMake dependencies.
+
+## Build the version pinned by War Powers
+
+Use this repository in the complete workspace at `engine/references/fbraz3-dxvk`. Initialize the workspace submodules first. After following the engine's [macOS toolchain guide](https://github.com/abhishekpradhan/warpowers-engine/blob/main/docs/BUILD/MACOS.md), run these commands **from the engine directory**:
+
+```sh
+cmake --preset macos-vulkan -DSAGE_DXVK_USE_LOCAL_FORK=ON
+cmake --build build/macos-vulkan --target dxvk_d3d8_install
+```
+
+[The engine's CMake integration](https://github.com/abhishekpradhan/warpowers-engine/blob/main/cmake/dx8.cmake) drives Meson with its native configuration and SDL3 backend. The generated build directory is `engine/build/macos-vulkan/_deps/dxvk-build-macos`; D3D8 and D3D9 libraries are copied to `engine/build/macos-vulkan/` for the engine build. CMake, Ninja, Meson, Clang and a configured Vulkan SDK/MoltenVK installation are required by that integration.
+
+The explicit local-fork option selects this checked-out source. Without it, the engine's default configuration fetches its separately pinned `DXVK_REMOTE_REF` from fbraz3 instead. Do not edit the generated `_deps` source or output as a substitute for changing this repository.
+
+## Contributing and licensing
+
+Follow [CONTRIBUTING.md](CONTRIBUTING.md) for fork routing and validation. Commit dependency changes here before updating the engine submodule pointer. Upstream submissions, publication and releases remain separate owner decisions; the inherited upstream instructions below are technical reference.
+
+The original [zlib/libpng license](LICENSE), copyright notices and third-party licenses are unchanged. This is an altered fork, and does not claim authorship of the upstream DXVK work. Credit remains with the upstream authors and contributors.
+
+## Upstream DXVK reference
+
+The following material describes upstream DXVK's Wine/native use and its own releases. It is retained as reference and does not describe a War Powers release or deployment procedure.
+
+### DXVK upstream
 
 A Vulkan-based translation layer for Direct3D 8/9/10/11 which allows running 3D applications on Linux using Wine.
 
