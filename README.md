@@ -1,6 +1,6 @@
 # War Powers DXVK fork
 
-This is the native graphics dependency checkout maintained for [War Powers](https://github.com/abhishekpradhan/warpowers). It preserves the [fbraz3 DXVK fork](https://github.com/fbraz3/dxvk) and [DXVK upstream](https://github.com/doitsujin/dxvk) lineage, including the native SDL3/macOS integration used by GeneralsX. It is currently private and is not an official upstream DXVK release.
+This is the native graphics dependency checkout maintained for [War Powers](https://github.com/abhishekpradhan/warpowers). It preserves the [fbraz3 DXVK fork](https://github.com/fbraz3/dxvk) and [DXVK upstream](https://github.com/doitsujin/dxvk) lineage, including the native SDL3/macOS integration used by GeneralsX. It is a development fork, not an official upstream DXVK release.
 
 The War Powers browser runtime uses `d8web` and WebGL2. This nested DXVK implementation is used for native development, particularly the D3D8 → Vulkan → MoltenVK path on macOS; its native libraries are not part of the browser game. The browser engine separately obtains compatibility headers through its CMake dependencies.
 
