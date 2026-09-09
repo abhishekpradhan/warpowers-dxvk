@@ -1,210 +1,55 @@
 # War Powers DXVK fork
 
-This is the native graphics dependency checkout maintained for [War Powers](https://github.com/abhishekpradhan/warpowers). It preserves the [fbraz3 DXVK fork](https://github.com/fbraz3/dxvk) and [DXVK upstream](https://github.com/doitsujin/dxvk) lineage, including the native SDL3/macOS integration used by GeneralsX. It is a development fork, not an official upstream DXVK release.
+[![License: zlib](https://img.shields.io/badge/license-zlib-2b6cb0?style=flat)](LICENSE)
 
-The War Powers browser runtime uses `d8web` and WebGL2. This nested DXVK implementation is used for native development, particularly the D3D8 → Vulkan → MoltenVK path on macOS; its native libraries are not part of the browser game. The browser engine separately obtains compatibility headers through its CMake dependencies.
+A fork of [DXVK](https://github.com/doitsujin/dxvk) maintained for the native macOS development path of the [War Powers engine](https://github.com/abhishekpradhan/warpowers-engine): the engine's Direct3D 8 calls go through DXVK's D3D8 and D3D9 layers to Vulkan, and MoltenVK carries Vulkan to Metal. The engine checks it out as the nested submodule `engine/references/fbraz3-dxvk`. It is a development fork, not an upstream DXVK release.
+
+It is not part of the browser game. [War Powers](https://github.com/abhishekpradhan/warpowers) renders in the browser through d8web (Direct3D 8 to WebGL2); the browser build fetches an upstream DXVK Native release tarball for its D3D8 compatibility headers only and never compiles, links or runs this code.
+
+## Lineage
+
+- [doitsujin/dxvk](https://github.com/doitsujin/dxvk) — upstream DXVK (remote `upstream`); this fork is based on the 2.7.1 line.
+- [fbraz3/dxvk](https://github.com/fbraz3/dxvk) — the GeneralsX fork that added the native SDL3/macOS integration (remote `fbraz3`).
+- [abhishekpradhan/warpowers-dxvk](https://github.com/abhishekpradhan/warpowers-dxvk) — this repository (`origin`, branch `main`): the fbraz3 macOS history plus the fork's own fixes and the `WP_DXVK_SPY` draw and state instrumentation used while bringing up the native renderer.
+
+Upstream remotes are fetch-only in a maintained checkout; nothing is pushed to them from here.
+
+## How the engine consumes it
+
+`engine/cmake/dx8.cmake` selects the DXVK source for the `macos-vulkan` preset:
+
+- Default (`SAGE_DXVK_USE_LOCAL_FORK=OFF`): a pinned fbraz3 commit (`DXVK_REMOTE_REF`) is cloned into `build/macos-vulkan/_deps/dxvk-src-fbraz3`, and this submodule is ignored.
+- `-DSAGE_DXVK_USE_LOCAL_FORK=ON`: this checkout is the source.
+
+Either way DXVK is built with Meson in native mode with only the SDL3 windowing backend enabled (the engine sets `DXVK_WSI_DRIVER=SDL3` itself at launch). The build directory is `engine/build/macos-vulkan/_deps/dxvk-build-macos`; `libdxvk_d3d8.0.dylib` and `libdxvk_d3d9.0.dylib` are copied into `engine/build/macos-vulkan/` for the engine to load. The Linux presets use upstream's prebuilt DXVK Native binaries instead and do not build this fork.
 
 ## Build the version pinned by War Powers
 
-Use this repository in the complete workspace at `engine/references/fbraz3-dxvk`. Initialize the workspace submodules first. After following the engine's [macOS toolchain guide](https://github.com/abhishekpradhan/warpowers-engine/blob/main/docs/BUILD/MACOS.md), run these commands **from the engine directory**:
+The engine's submodule pointer pins the commit. In a workspace with the submodules initialized (`git submodule update --init --recursive`), after the engine's [macOS toolchain guide](https://github.com/abhishekpradhan/warpowers-engine/blob/main/docs/BUILD/MACOS.md) (CMake, Ninja, Meson, Clang and a LunarG Vulkan SDK with MoltenVK), run these commands **from the engine directory**:
 
 ```sh
 cmake --preset macos-vulkan -DSAGE_DXVK_USE_LOCAL_FORK=ON
 cmake --build build/macos-vulkan --target dxvk_d3d8_install
 ```
 
-[The engine's CMake integration](https://github.com/abhishekpradhan/warpowers-engine/blob/main/cmake/dx8.cmake) drives Meson with its native configuration and SDL3 backend. The generated build directory is `engine/build/macos-vulkan/_deps/dxvk-build-macos`; D3D8 and D3D9 libraries are copied to `engine/build/macos-vulkan/` for the engine build. CMake, Ninja, Meson, Clang and a configured Vulkan SDK/MoltenVK installation are required by that integration.
+Then build the engine target (`cmake --build build/macos-vulkan --target z_generals`). Edit sources in this checkout, never under `_deps/`.
 
-The explicit local-fork option selects this checked-out source. Without it, the engine's default configuration fetches its separately pinned `DXVK_REMOTE_REF` from fbraz3 instead. Do not edit the generated `_deps` source or output as a substitute for changing this repository.
+## Contributing
 
-## Contributing and licensing
+[CONTRIBUTING.md](CONTRIBUTING.md) covers scope, validation and routing. Commit a DXVK change in this repository and push it before updating the engine's submodule pointer, so that a recursive clone always resolves. A browser walkthrough does not validate this dependency: test on the native macOS build and say which platforms were not tested.
 
-Follow [CONTRIBUTING.md](CONTRIBUTING.md) for fork routing and validation. Commit dependency changes here before updating the engine submodule pointer. Upstream submissions, publication and releases remain separate owner decisions; the inherited upstream instructions below are technical reference.
+## License
 
-The original [zlib/libpng license](LICENSE), copyright notices and third-party licenses are unchanged. This is an altered fork, and does not claim authorship of the upstream DXVK work. Credit remains with the upstream authors and contributors.
+DXVK's [zlib/libpng license](LICENSE), its copyright notices and its third-party licenses are unchanged. This is an altered fork; credit for DXVK belongs to its upstream authors and contributors.
 
-## Upstream DXVK reference
+## Upstream note
 
-The following material describes upstream DXVK's Wine/native use and its own releases. It is retained as reference and does not describe a War Powers release or deployment procedure.
+Upstream DXVK is a Vulkan-based translation layer for Direct3D 8/9/10/11, used with Wine on Linux and, as DXVK Native, without Wine in ports like this one. Its [README](https://github.com/doitsujin/dxvk#readme), [wiki](https://github.com/doitsujin/dxvk/wiki) and [releases](https://github.com/doitsujin/dxvk/releases) cover the Wine setup, driver support and Windows DLL builds, none of which apply here. The upstream runtime switches that do apply to the native macOS engine build:
 
-### DXVK upstream
-
-A Vulkan-based translation layer for Direct3D 8/9/10/11 which allows running 3D applications on Linux using Wine.
-
-For the current status of the project, please refer to the [project wiki](https://github.com/doitsujin/dxvk/wiki).
-
-The most recent development builds can be found [here](https://github.com/doitsujin/dxvk/actions/workflows/artifacts.yml?query=branch%3Amaster).
-
-Release builds can be found [here](https://github.com/doitsujin/dxvk/releases).
-
-## How to use
-In order to install a DXVK package obtained from the [release](https://github.com/doitsujin/dxvk/releases) page into a given wine prefix, copy or symlink the DLLs into the following directories as follows, then open `winecfg` and manually add `native` DLL overrides for `d3d8`, `d3d9`, `d3d10core`, `d3d11` and `dxgi` under the Libraries tab.
-
-In a default Wine prefix that would be as follows:
-```
-export WINEPREFIX=/path/to/wineprefix
-cp x64/*.dll $WINEPREFIX/drive_c/windows/system32
-cp x32/*.dll $WINEPREFIX/drive_c/windows/syswow64
-winecfg
-```
-
-For a pure 32-bit Wine prefix (non default) the 32-bit DLLs instead go to the `system32` directory:
-```
-export WINEPREFIX=/path/to/wineprefix
-cp x32/*.dll $WINEPREFIX/drive_c/windows/system32
-winecfg
-```
-
-Verify that your application uses DXVK instead of wined3d by enabling the HUD (see notes below).
-
-In order to remove DXVK from a prefix, remove the DLLs and DLL overrides, and run `wineboot -u` to restore the original DLL files.
-
-Tools such as Steam Play, Lutris, Bottles, Heroic Launcher, etc will automatically handle setup of dxvk on their own when enabled.
-
-#### DLL dependencies 
-Listed below are the DLL requirements for using DXVK with any single API.
-
-- d3d8: `d3d8.dll` and `d3d9.dll`
-- d3d9: `d3d9.dll`
-- d3d10: `d3d10core.dll`, `d3d11.dll` and `dxgi.dll`
-- d3d11: `d3d11.dll` and `dxgi.dll`
-
-### Notes on Vulkan drivers
-Before reporting an issue, please check the [Wiki](https://github.com/doitsujin/dxvk/wiki/Driver-support) page on the current driver status and make sure you run a recent enough driver version for your hardware.
-
-### Online multi-player games
-Manipulation of Direct3D libraries in multi-player games may be considered cheating and can get your account **banned**. This may also apply to single-player games with an embedded or dedicated multiplayer portion. **Use at your own risk.**
-
-### HUD
-The `DXVK_HUD` environment variable controls a HUD which can display the framerate and some stat counters. It accepts a comma-separated list of the following options:
-- `devinfo`: Displays the name of the GPU and the driver version.
-- `fps`: Shows the current frame rate.
-- `frametimes`: Shows a frame time graph.
-- `submissions`: Shows the number of command buffers submitted per frame.
-- `drawcalls`: Shows the number of draw calls and render passes per frame.
-- `pipelines`: Shows the total number of graphics and compute pipelines.
-- `descriptors`: Shows the number of descriptor pools and descriptor sets.
-- `memory`: Shows the amount of device memory allocated and used.
-- `allocations`: Shows detailed memory chunk suballocation info.
-- `gpuload`: Shows estimated GPU load. May be inaccurate.
-- `version`: Shows DXVK version.
-- `api`: Shows the D3D feature level used by the application.
-- `cs`: Shows worker thread statistics.
-- `compiler`: Shows shader compiler activity
-- `samplers`: Shows the current number of sampler pairs used *[D3D9 Only]*
-- `ffshaders`: Shows the current number of shaders generated from fixed function state *[D3D9 Only]*
-- `swvp`: Shows whether or not the device is running in software vertex processing mode *[D3D9 Only]*
-- `scale=x`: Scales the HUD by a factor of `x` (e.g. `1.5`)
-- `opacity=y`: Adjusts the HUD opacity by a factor of `y` (e.g. `0.5`, `1.0` being fully opaque).
-
-Additionally, `DXVK_HUD=1` has the same effect as `DXVK_HUD=devinfo,fps`, and `DXVK_HUD=full` enables all available HUD elements.
-
-### Logs
-When used with Wine, DXVK will print log messages to `stderr`. Additionally, standalone log files can optionally be generated by setting the `DXVK_LOG_PATH` variable, where log files in the given directory will be called `app_d3d11.log`, `app_dxgi.log` etc., where `app` is the name of the game executable.
-
-On Windows, log files will be created in the game's working directory by default, which is usually next to the game executable.
-
-### Frame rate limit
-The `DXVK_FRAME_RATE` environment variable can be used to limit the frame rate. A value of `0` uncaps the frame rate, while any positive value will limit rendering to the given number of frames per second. Alternatively, the configuration file can be used.
-
-### Device filter
-Some applications do not provide a method to select a different GPU. In that case, DXVK can be forced to use a given device:
-- `DXVK_FILTER_DEVICE_NAME="Device Name"` Selects devices with a matching Vulkan device name, which can be retrieved with tools such as `vulkaninfo`. Matches on substrings, so "VEGA" or "AMD RADV VEGA10" is supported if the full device name is "AMD RADV VEGA10 (LLVM 9.0.0)", for example. If the substring matches more than one device, the first device matched will be used.
-- `DXVK_FILTER_DEVICE_UUID="00000000000000000000000000000001"` Selects a device by matching its Vulkan device UUID, which can also be retrieved using tools such as `vulkaninfo`. The UUID must be a 32-character hexadecimal string with no dashes. This method provides more precise selection, especially when using multiple identical GPUs.
-
-**Note:** If the device filter is configured incorrectly, it may filter out all devices and applications will be unable to create a D3D device.
-
-### Debugging
-The following environment variables can be used for **debugging** purposes.
-- `VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation` Enables Vulkan debug layers. Highly recommended for troubleshooting rendering issues and driver crashes. Requires the Vulkan SDK to be installed on the host system.
-- `DXVK_LOG_LEVEL=none|error|warn|info|debug` Controls message logging.
-- `DXVK_LOG_PATH=/some/directory` Changes path where log files are stored. Set to `none` to disable log file creation entirely, without disabling logging.
-- `DXVK_DEBUG=markers|validation` Enables use of the `VK_EXT_debug_utils` extension for translating performance event markers, or to enable Vulkan validation, respecticely.
-- `DXVK_CONFIG_FILE=/xxx/dxvk.conf` Sets path to the configuration file.
-- `DXVK_CONFIG="dxgi.hideAmdGpu = True; dxgi.syncInterval = 0"` Can be used to set config variables through the environment instead of a configuration file using the same syntax. `;` is used as a seperator.
-
-### Graphics Pipeline Library
-On drivers which support `VK_EXT_graphics_pipeline_library` Vulkan shaders will be compiled at the time the game loads its D3D shaders, rather than at draw time. This reduces or eliminates shader compile stutter in many games when compared to the previous system.
-
-In games that load their shaders during loading screens or in the menu, this can lead to prolonged periods of very high CPU utilization, especially on weaker CPUs. For affected games it is recommended to wait for shader compilation to finish before starting the game to avoid stutter and low performance. Shader compiler activity can be monitored with `DXVK_HUD=compiler`.
-
-**Note:** Games which only load their D3D shaders at draw time (e.g. most Unreal Engine games) will still exhibit some stutter, although it should still be less severe than without this feature.
-
-## Build instructions
-
-In order to pull in all submodules that are needed for building, clone the repository using the following command:
-```
-git clone --recursive https://github.com/doitsujin/dxvk.git
-```
-
-### Requirements:
-- [wine 7.1](https://www.winehq.org/) or newer
-- [Meson](https://mesonbuild.com/) build system (at least version 0.58)
-- [Mingw-w64](https://www.mingw-w64.org) compiler and headers (at least version 10.0)
-- [glslang](https://github.com/KhronosGroup/glslang) compiler
-
-### Building DLLs
-
-#### The simple way
-Inside the DXVK directory, run:
-```
-./package-release.sh master /your/target/directory --no-package
-```
-
-This will create a folder `dxvk-master` in `/your/target/directory`, which contains both 32-bit and 64-bit versions of DXVK, which can be set up in the same way as the release versions as noted above.
-
-In order to preserve the build directories for development, pass `--dev-build` to the script. This option implies `--no-package`. After making changes to the source code, you can then do the following to rebuild DXVK:
-```
-# change to build.32 for 32-bit
-cd /your/target/directory/build.64
-ninja install
-```
-
-#### Compiling manually
-```
-# 64-bit build. For 32-bit builds, replace
-# build-win64.txt with build-win32.txt
-meson setup --cross-file build-win64.txt --buildtype release --prefix /your/dxvk/directory build.w64
-cd build.w64
-ninja install
-```
-
-The D3D8, D3D9, D3D10, D3D11 and DXGI DLLs will be located in `/your/dxvk/directory/bin`.
-
-### Build troubleshooting
-DXVK requires threading support from your mingw-w64 build environment. If you
-are missing this, you may see "error: ‘std::cv_status’ has not been declared"
-or similar threading related errors.
-
-On Debian and Ubuntu, this can be resolved by using the posix alternate, which
-supports threading. For example, choose the posix alternate from these
-commands:
-```
-update-alternatives --config x86_64-w64-mingw32-gcc
-update-alternatives --config x86_64-w64-mingw32-g++
-update-alternatives --config i686-w64-mingw32-gcc
-update-alternatives --config i686-w64-mingw32-g++
-```
-For non debian based distros, make sure that your mingw-w64-gcc cross compiler 
-does have `--enable-threads=posix` enabled during configure. If your distro does
-ship its mingw-w64-gcc binary with `--enable-threads=win32` you might have to
-recompile locally or open a bug at your distro's bugtracker to ask for it. 
-
-# DXVK Native
-
-DXVK Native is a version of DXVK which allows it to be used natively without Wine.
-
-This is primarily useful for game and application ports to either avoid having to write another rendering backend, or to help with port bringup during development.
-
-[Release builds](https://github.com/doitsujin/dxvk/releases) are built using the Steam Runtime.
-
-### How does it work?
-
-DXVK Native replaces certain Windows-isms with a platform and framework-agnostic replacement, for example, `HWND`s can become `SDL_Window*`s, etc.
-All it takes to do that is to add another WSI backend.
-
-**Note:** DXVK Native requires a backend to be explicitly set via the `DXVK_WSI_DRIVER` environment variable. The current built-in options are `SDL3`, `SDL2`, and `GLFW`.
-
-DXVK Native comes with a slim set of Windows header definitions required for D3D9/11 and the MinGW headers for D3D9/11.
-In most cases, it will end up being plug and play with your renderer, but there may be certain teething issues such as:
-- `__uuidof(type)` is supported, but `__uuidof(variable)` is not supported. Use `__uuidof_var(variable)` instead.
+| Variable | Effect |
+|---|---|
+| `DXVK_HUD=1`, `DXVK_HUD=full` or a list such as `devinfo,fps,frametimes,drawcalls,memory,compiler` | On-screen HUD: GPU and driver, frame rate, frame times, draw calls, pipelines, memory, shader-compiler activity |
+| `DXVK_LOG_LEVEL=none`, `error`, `warn`, `info` or `debug` | Log verbosity; `DXVK_LOG_PATH=<dir>` chooses where log files go (`none` disables them) |
+| `DXVK_FRAME_RATE=<fps>` | Frame-rate limit; `0` uncaps |
+| `VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation` | Vulkan validation layers (needs the Vulkan SDK) |
+| `DXVK_CONFIG_FILE=<path>` or `DXVK_CONFIG="key = value; ..."` | Configuration file or inline settings |

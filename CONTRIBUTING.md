@@ -1,6 +1,6 @@
 # Contributing to the War Powers DXVK fork
 
-This private checkout is the native graphics dependency of the War Powers engine. Its source and attribution come from DXVK and the fbraz3 native/macOS integration fork. Follow the [engine's contribution guidance](https://github.com/abhishekpradhan/warpowers-engine/blob/main/CONTRIBUTING.md) alongside the dependency-specific notes below.
+This repository is the native graphics dependency of the War Powers engine. Its source and attribution come from DXVK and the fbraz3 native/macOS integration fork. Follow the [engine's contribution guidance](https://github.com/abhishekpradhan/warpowers-engine/blob/main/CONTRIBUTING.md) alongside the dependency-specific notes below.
 
 Work on the source here, then build it through the engine with `SAGE_DXVK_USE_LOCAL_FORK=ON` as described in [README.md](README.md). Do not edit generated `_deps` source trees or generated libraries. Commit the dependency change in this repository before updating the engine's submodule pointer.
 
